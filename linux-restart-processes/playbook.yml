@@ -1,0 +1,36 @@
+---
+- hosts: test_vm
+  become: no
+
+  tasks:
+    - name: Look for the preocesses
+      shell: "ps axo cmd,pid,user | grep {{ user }} | grep -v grep | grep dummy | awk '{print $2}'"
+      register: processes_pids
+
+    
+    - name: Graceful stop processes
+      ignore_errors: yes
+      shell: "/home/vagrant/in_sync/dummy_processes.sh stop"
+
+    
+    - name: Wait for process folder to be removed
+      wait_for:
+        path: "/proc/{{ item }}/status"
+        state: absent
+        timeout: 15
+      with_items: "{{ processes_pids.stdout_lines }}"
+      ignore_errors: yes
+      register: stuck_processes
+    
+    - name: Force kill stuck processes
+      ignore_errors: yes
+      shell: "kill -9 {{ item }}"
+      with_items: "{{ stuck_processes.results | select('failed') | map(attribute='item') | list }}"
+    
+    - name: Check processes again
+      shell: "ps axo cmd,pid,user | grep {{ user }} | grep -v grep | grep dummy | awk '{print $2}'"
+      register: process_verification
+    
+    - name: Restart processes
+      shell: "/home/vagrant/in_sync/dummy_processes.sh start"
+      when: process_verification.stdout == ""
