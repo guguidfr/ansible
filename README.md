@@ -1,2 +1,2 @@
 # Ansible  
-This repo is for all the playbooks I will make or made during my carreer.
+This repo is for all the playbooks I made or I will make during my carreer.
