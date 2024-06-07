@@ -2,6 +2,8 @@
 - hosts: test_vm
   become: no
 
+  # Version with no error handling.
+
   tasks:
     - name: Look for the preocesses
       shell: "ps axo cmd,pid,user | grep {{ user }} | grep -v grep | grep dummy | awk '{print $2}'"
