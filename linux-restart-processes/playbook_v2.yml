@@ -1,0 +1,81 @@
+---
+- hosts: test_vm
+  become: no
+
+  # Version with error handling
+
+  tasks:
+    - name: Look for the preocesses
+      shell: "ps axo cmd,pid,user | grep {{ user }} | grep -v grep | grep dummy | awk '{print $2}'"
+      register: initial_pids_check
+
+    - name: Debug - Print pids
+      debug:
+        var: initial_pids_check
+
+    - name: Stopping the processes
+      block:
+        - name: Stopping the processes with the script
+          shell: "/home/vagrant/in_sync/dummy_processes.sh stop"
+        
+        - name: Wait for processes detention
+          wait_for:
+            path: "/proc/{{ item }}/status"
+            state: absent
+            timeout: 15
+          with_items: "{{ initial_pids_check.stdout_lines }}"
+          ignore_errors: yes
+          register: graceful_detention
+
+        - name: Debug - Print graceful_detention
+          debug:
+            var: graceful_detention
+        
+        - name: Set control variable
+          set_fact:
+            running_processes: false
+          when: graceful_detention.msg == "All items completed"
+        
+        - name: Forced kill stuck processes
+          block:
+            - name: Use SIGKILL to stop the process
+              shell: "kill -9 {{  item  }}"
+              with_items: "{{ graceful_detention.results | select('failed') | map(attribute='item') | list }}"
+
+            - name: Set control variable
+              set_fact:
+                running_processes: false
+
+          rescue:
+          - name: Inform about error during stopping process
+            fail:
+              msg: There's been an error during the detention process. Manual check suggested.
+
+          when: graceful_detention.failed == true
+      
+      when: initial_pids_check.stdout != ""
+
+    - name: Starting the processes
+      block:
+        - name: Restart processes
+          shell: "/home/vagrant/in_sync/dummy_processes.sh start"
+          register: script_output
+
+        - name: Debug - print srcript output
+          debug:
+            var: script_output
+        
+        - name: Verify processes are running
+          shell: "ps axo cmd,pid,user | grep {{ user }} | grep -v grep | grep dummy | awk '{print $2}'"
+          register: running_processes_pid
+
+        - name: Debug - print running_processes_pid
+          debug:
+            var: running_processes_pid
+
+        - name: Raise error if processes are still not running
+          fail:
+            msg: There's been an error when starting the processes. Manual check suggested
+          when: running_processes_pid.stdout == ""
+      
+      when: (initial_pids_check.stdout == "") or (running_processes is defined and running_processes == false)
