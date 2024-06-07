@@ -7,12 +7,10 @@
       shell: "ps axo cmd,pid,user | grep {{ user }} | grep -v grep | grep dummy | awk '{print $2}'"
       register: processes_pids
 
-    
     - name: Graceful stop processes
       ignore_errors: yes
       shell: "/home/vagrant/in_sync/dummy_processes.sh stop"
 
-    
     - name: Wait for process folder to be removed
       wait_for:
         path: "/proc/{{ item }}/status"
