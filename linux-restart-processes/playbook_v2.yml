@@ -40,6 +40,7 @@
           block:
             - name: Use SIGKILL to stop the process
               shell: "kill -9 {{  item  }}"
+              
               with_items: "{{ graceful_detention.results | select('failed') | map(attribute='item') | list }}"
 
             - name: Set control variable
@@ -51,7 +52,7 @@
             fail:
               msg: There's been an error during the detention process. Manual check suggested.
 
-          when: graceful_detention.failed == true
+          when: graceful_detention.msg == "One or more items failed"
       
       when: initial_pids_check.stdout != ""
 
